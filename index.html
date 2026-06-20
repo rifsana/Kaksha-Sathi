@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kaksha Saathi — Voice AI Teaching Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ── Design tokens ── */
+  :root {
+    --board:      #141824;
+    --board-mid:  #1a2035;
+    --board-lite: #1f2740;
+    --chalk:      #f0eee8;
+    --chalk-dim:  #9ba3b8;
+    --chalk-faint:#3d4560;
+    --marigold:   #f5a623;
+    --marigold-d: #c47e0e;
+    --green:      #4ecb8d;
+    --red:        #f06254;
+    --blue:       #5b8dee;
+    --glow-gold:  rgba(245,166,35,0.18);
+    --glow-green: rgba(78,203,141,0.15);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--board);
+    background-image:
+      radial-gradient(ellipse 900px 600px at 10% 0%,   rgba(245,166,35,0.07) 0%, transparent 55%),
+      radial-gradient(ellipse 700px 500px at 95% 100%, rgba(78,203,141,0.05) 0%, transparent 55%);
+    color: var(--chalk);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Layout ── */
+  .app { max-width: 800px; margin: 0 auto; padding: 32px 20px 80px; }
+
+  /* ── Header ── */
+  .header { margin-bottom: 32px; }
+  .header-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--marigold); display: flex; align-items: center; gap: 8px;
+    margin-bottom: 10px;
+  }
+  .header-eyebrow::before {
+    content:''; display:inline-block; width:6px; height:6px; border-radius:50%;
+    background: var(--marigold); box-shadow: 0 0 8px var(--marigold);
+  }
+  h1 {
+    font-family: 'Kalam', cursive; font-size: 52px; font-weight: 700;
+    color: var(--chalk); line-height: 1;
+    text-shadow: 0 0 40px rgba(245,166,35,0.2), 0 2px 0 rgba(0,0,0,0.3);
+    margin-bottom: 6px;
+  }
+  .header-sub { color: var(--chalk-dim); font-size: 15px; line-height: 1.6; max-width: 540px; }
+
+  /* ── Chalk rule ── */
+  .rule {
+    border: none; height: 2px; margin: 24px 0;
+    background: repeating-linear-gradient(90deg, var(--chalk-faint) 0 10px, transparent 10px 16px);
+    opacity: .6;
+  }
+
+  /* ── Mode tabs ── */
+  .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 28px; }
+  .mode-btn {
+    background: linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+    border: 1.5px solid var(--chalk-faint); border-radius: 14px;
+    padding: 16px 14px; color: var(--chalk); cursor: pointer;
+    text-align: left; transition: .2s ease; font-family: 'Inter', sans-serif;
+    position: relative; overflow: hidden;
+  }
+  .mode-btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(160deg, var(--glow-gold), transparent);
+    opacity: 0; transition: opacity .2s;
+  }
+  .mode-btn:hover { border-color: var(--marigold); transform: translateY(-1px); }
+  .mode-btn:hover::after { opacity: 1; }
+  .mode-btn.active { border-color: var(--marigold); }
+  .mode-btn.active::after { opacity: 1; }
+  .mode-btn:focus-visible { outline: 2px solid var(--marigold); outline-offset: 3px; }
+  .mode-tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--marigold); letter-spacing: .1em; margin-bottom: 6px; }
+  .mode-name { font-weight: 800; font-size: 15.5px; margin-bottom: 4px; position: relative; }
+  .mode-hint { font-size: 12px; color: var(--chalk-dim); line-height: 1.4; position: relative; }
+
+  /* ── Mic zone ── */
+  .mic-zone { display: flex; flex-direction: column; align-items: center; padding: 36px 0 20px; }
+
+  .mic-btn {
+    width: 120px; height: 120px; border-radius: 50%; border: none; cursor: pointer;
+    background: radial-gradient(circle at 38% 32%, #f8c96a, var(--marigold) 70%);
+    box-shadow: 0 8px 32px rgba(245,166,35,0.35), inset 0 2px 8px rgba(255,255,255,0.28);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .15s ease, box-shadow .2s ease;
+    position: relative;
+  }
+  .mic-btn svg { width: 46px; height: 46px; }
+  .mic-btn:hover { transform: scale(1.04); box-shadow: 0 12px 40px rgba(245,166,35,0.45), inset 0 2px 8px rgba(255,255,255,.28); }
+  .mic-btn:active { transform: scale(.95); }
+  .mic-btn:focus-visible { outline: 3px solid var(--chalk); outline-offset: 4px; }
+
+  .mic-btn.listening {
+    background: radial-gradient(circle at 38% 32%, #f08c7a, var(--red) 70%);
+    animation: mic-pulse 1.4s ease-out infinite;
+  }
+  @keyframes mic-pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(240,98,84,.6),  inset 0 2px 8px rgba(255,255,255,.2); }
+    70%  { box-shadow: 0 0 0 30px rgba(240,98,84,0),   inset 0 2px 8px rgba(255,255,255,.2); }
+    100% { box-shadow: 0 0 0 0   rgba(240,98,84,0),   inset 0 2px 8px rgba(255,255,255,.2); }
+  }
+
+  .mic-status {
+    margin-top: 18px; font-size: 14px; color: var(--chalk-dim);
+    text-align: center; min-height: 20px; line-height: 1.5; max-width: 440px;
+  }
+  .mic-transcript {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    color: var(--marigold); min-height: 18px; text-align: center;
+    margin-top: 8px; max-width: 500px; line-height: 1.5;
+  }
+
+  /* ── Language toggle ── */
+  .lang-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; }
+  .lang-pill {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .08em;
+    padding: 5px 14px; border-radius: 20px; border: 1.5px solid var(--chalk-faint);
+    background: transparent; color: var(--chalk-dim); cursor: pointer; transition: .2s;
+  }
+  .lang-pill.active { border-color: var(--marigold); color: var(--marigold); background: rgba(245,166,35,0.1); }
+  .lang-label { font-size: 12px; color: var(--chalk-dim); }
+
+  /* ── Output card ── */
+  .card {
+    background: linear-gradient(160deg, rgba(255,255,255,.042), rgba(255,255,255,.012));
+    border: 1.5px solid var(--chalk-faint); border-radius: 20px;
+    padding: 26px 26px 28px; margin-top: 14px;
+    display: none; box-shadow: 0 12px 40px rgba(0,0,0,.25);
+  }
+  .card.show { display: block; animation: fade-up .35s ease; }
+  @keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .card-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .12em; color: var(--marigold); text-transform: uppercase; margin-bottom: 14px; }
+
+  /* Quiz */
+  .quiz-question { font-size: 22px; font-weight: 700; line-height: 1.5; margin-bottom: 20px; }
+  .quiz-options { display: grid; gap: 10px; margin-bottom: 14px; }
+  .opt {
+    border: 1.5px solid var(--chalk-faint); border-radius: 12px;
+    padding: 13px 16px; font-size: 15px; transition: .2s;
+    background: rgba(255,255,255,.015); cursor: pointer; line-height: 1.4;
+  }
+  .opt:hover { border-color: var(--chalk-dim); background: rgba(255,255,255,.04); }
+  .opt.correct { border-color: var(--green); background: rgba(78,203,141,.13); box-shadow: 0 0 0 1px rgba(78,203,141,.3); }
+  .opt.wrong   { border-color: var(--red);   background: rgba(240,98,84,.13);  box-shadow: 0 0 0 1px rgba(240,98,84,.3); }
+  .quiz-meta { display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--chalk-dim); margin-top: 14px; }
+
+  /* Concept explanation */
+  .concept-body { font-size: 16px; line-height: 1.75; color: var(--chalk); }
+  .concept-body p { margin-bottom: 14px; }
+  .concept-body strong { color: var(--marigold); font-weight: 700; }
+  .concept-body .example-box {
+    background: rgba(255,255,255,.04); border-left: 3px solid var(--marigold);
+    border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 16px 0;
+    font-size: 15px;
+  }
+  .read-aloud-btn {
+    margin-top: 16px; padding: 9px 20px; border-radius: 10px;
+    border: 1.5px solid var(--marigold); background: rgba(245,166,35,0.1);
+    color: var(--marigold); font-family: 'Inter', sans-serif; font-size: 13.5px;
+    font-weight: 600; cursor: pointer; transition: .2s;
+  }
+  .read-aloud-btn:hover { background: rgba(245,166,35,0.2); }
+
+  /* Activity guide */
+  .step-row {
+    display: flex; gap: 16px; align-items: flex-start;
+    padding: 16px 0; border-bottom: 1px dashed var(--chalk-faint);
+  }
+  .step-row:last-child { border-bottom: none; }
+  .step-num {
+    font-family: 'Kalam', cursive; font-size: 22px; color: var(--chalk-dim);
+    width: 30px; flex-shrink: 0; text-align: center; padding-top: 2px;
+  }
+  .step-row.active .step-num { color: var(--marigold); }
+  .step-row.done { opacity: .38; }
+  .step-row.active { background: rgba(245,166,35,.05); border-radius: 12px; padding: 16px 14px; margin: 0 -14px; }
+  .step-text { font-size: 15.5px; line-height: 1.65; }
+
+  /* Timer */
+  .timer-wrap { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  .timer-ring { position: relative; width: 48px; height: 48px; flex-shrink: 0; }
+  .timer-ring svg { transform: rotate(-90deg); }
+  .timer-ring .num {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--marigold);
+  }
+  .timer-hint { font-size: 12px; color: var(--chalk-dim); line-height: 1.5; }
+
+  /* ── Settings panel ── */
+  .settings {
+    margin-top: 30px;
+    background: linear-gradient(160deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+    border: 1px solid var(--chalk-faint); border-radius: 16px; padding: 20px 22px;
+  }
+  .settings-title { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .12em; color: var(--chalk-dim); text-transform: uppercase; margin-bottom: 14px; }
+  .settings-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .settings-row:last-child { margin-bottom: 0; }
+  .settings-label { font-size: 13px; color: var(--chalk-dim); }
+  .settings-label a { color: var(--marigold); text-decoration: underline; }
+  .key-input {
+    width: 100%; background: rgba(255,255,255,.04); border: 1px solid var(--chalk-faint);
+    border-radius: 10px; color: var(--chalk); padding: 11px 14px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px; transition: .2s;
+  }
+  .key-input:focus { outline: none; border-color: var(--marigold); box-shadow: 0 0 0 3px rgba(245,166,35,.15); }
+  .key-input::placeholder { color: var(--chalk-faint); }
+  .voice-select {
+    width: 100%; background: var(--board-mid); border: 1px solid var(--chalk-faint);
+    border-radius: 10px; color: var(--chalk); padding: 10px 14px;
+    font-family: 'Inter', sans-serif; font-size: 13.5px; transition: .2s; cursor: pointer;
+  }
+  .voice-select:focus { outline: none; border-color: var(--marigold); }
+
+  /* ── Spinner ── */
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--chalk-faint); border-top-color: var(--marigold);
+    border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Responsive ── */
+  @media (max-width: 520px) {
+    h1 { font-size: 40px; }
+    .modes { grid-template-columns: 1fr; }
+    .mic-btn { width: 100px; height: 100px; }
+    .mic-btn svg { width: 38px; height: 38px; }
+    .app { padding: 24px 16px 60px; }
+  }
+
+  /* ── Accessibility ── */
+  @media (prefers-reduced-motion: reduce) {
+    .mic-btn.listening { animation: none; box-shadow: 0 0 0 4px var(--red); }
+    .card.show { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header class="header">
+    <h1>Kaksha Saathi</h1>
+    <p class="header-sub">Apna classroom co-pilot. Bolo, aur quiz shuru karo ya activity guide chalao ^_^</p>
+  </header>
+
+  <hr class="rule">
+
+  <!-- Mode selector -->
+  <div class="modes" role="group" aria-label="Select mode">
+    <button class="mode-btn active" id="modeQuiz" aria-pressed="true">
+      <div class="mode-tag">MODE 01</div>
+      <div class="mode-name">Voice Quiz</div>
+      <div class="mode-hint">"Quiz shuru karo photosynthesis par"</div>
+    </button>
+    <button class="mode-btn" id="modeConcept" aria-pressed="false">
+      <div class="mode-tag">MODE 02</div>
+      <div class="mode-name">Concept Samjhao</div>
+      <div class="mode-hint">"Gravity explain karo" ya "Explain gravity"</div>
+    </button>
+    <button class="mode-btn" id="modeActivity" aria-pressed="false">
+      <div class="mode-tag">MODE 03</div>
+      <div class="mode-name">Activity Guide</div>
+      <div class="mode-hint">"Activity guide chalao volcano model"</div>
+    </button>
+  </div>
+
+  <!-- Mic zone -->
+  <div class="mic-zone">
+    <button class="mic-btn" id="micBtn" aria-label="Tap to speak" aria-live="polite">
+      <!-- Mic icon -->
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M12 15.5a4 4 0 004-4V6a4 4 0 10-8 0v5.5a4 4 0 004 4z" stroke="#16291f" stroke-width="1.7" stroke-linejoin="round"/>
+        <path d="M19.5 11.5a7.5 7.5 0 01-15 0M12 19v3" stroke="#16291f" stroke-width="1.7" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <p class="mic-status" id="micStatus" role="status" aria-live="polite">Tap karo aur bolo, apni language mein</p>
+    <div class="mic-transcript" id="micTranscript" aria-live="polite"></div>
+
+    <!-- Language selector -->
+    <div class="lang-row" role="group" aria-label="Recognition language">
+      <span class="lang-label">Boli:</span>
+      <button class="lang-pill active" id="langHi" aria-pressed="true">हिंदी + EN</button>
+      <button class="lang-pill" id="langEn" aria-pressed="false">English only</button>
+    </div>
+  </div>
+
+  <!-- Output cards -->
+  <div class="card" id="quizCard" role="region" aria-label="Quiz">
+    <div class="card-eyebrow" id="quizEyebrow">Voice Quiz</div>
+    <div class="quiz-question" id="quizQuestion" aria-live="polite">—</div>
+    <div class="quiz-options" id="quizOptions"></div>
+    <div class="quiz-meta">
+      <span id="quizProgress">Q 0 / 0</span>
+      <span id="quizScore">Score: 0</span>
+    </div>
+  </div>
+
+  <div class="card" id="conceptCard" role="region" aria-label="Concept explanation">
+    <div class="card-eyebrow">Concept — Samjhaaya</div>
+    <div class="concept-body" id="conceptBody" aria-live="polite"></div>
+    <button class="read-aloud-btn" id="readAloudBtn" style="display:none" aria-label="Read explanation aloud">🔊 Dobara sunao</button>
+  </div>
+
+  <div class="card" id="activityCard" role="region" aria-label="Activity guide">
+    <div class="card-eyebrow">Activity Guide</div>
+    <div id="activitySteps"></div>
+  </div>
+
+  <hr class="rule">
+
+  <!-- Settings -->
+  <div class="settings">
+    <div class="settings-title">⚙ Settings</div>
+
+    <div class="settings-row">
+      <label class="settings-label" for="apiKey">
+        Groq API Key (free) — <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> se lo, bilkul free hai
+      </label>
+      <input class="key-input" type="password" id="apiKey" placeholder="gsk_..." autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="settings-row">
+      <label class="settings-label" for="voiceSelect">TTS Voice (text-to-speech)</label>
+      <select class="voice-select" id="voiceSelect">
+        <option value="">Auto — browser default</option>
+      </select>
+    </div>
+  </div>
+
+</div><!-- /.app -->
+
+<script>
+/* ───────────────────────────────────────────────
+   KAKSHA SAATHI — Complete JS
+   Features:
+   • Voice input (STT) with Hinglish / English toggle
+   • 3 modes: Voice Quiz, Concept Explanation, Activity Guide
+   • Claude API (claude-sonnet-4-6) for AI content
+   • Fallback sample content when no API key
+   • TTS with voice picker & hi-IN preference
+   • Timer ring for activity steps
+   • Accessible ARIA live regions
+─────────────────────────────────────────────── */
+
+const $ = id => document.getElementById(id);
+
+/* ── State ── */
+let currentMode   = 'quiz';
+let currentLang   = 'hi-IN'; // STT language
+let listening     = false;
+let ttsQueue      = [];
+let ttsPlaying    = false;
+let currentConceptText = '';
+
+/* ── TTS ── */
+const synth = window.speechSynthesis;
+let voices   = [];
+let preferredVoice = null;
+
+function loadVoices() {
+  voices = synth.getVoices();
+  if (!voices.length) return;
+  const sel = $('voiceSelect');
+  // keep default option
+  while (sel.options.length > 1) sel.remove(1);
+  voices.forEach((v, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${v.name} (${v.lang})`;
+    sel.appendChild(opt);
+  });
+  // auto-pick best Hindi voice
+  preferredVoice =
+    voices.find(v => v.lang === 'hi-IN' && v.name.toLowerCase().includes('google')) ||
+    voices.find(v => v.lang === 'hi-IN') ||
+    voices.find(v => v.lang.startsWith('hi')) ||
+    voices.find(v => v.lang === 'en-IN') ||
+    voices.find(v => v.lang.startsWith('en'));
+}
+synth.onvoiceschanged = loadVoices;
+loadVoices();
+
+$('voiceSelect').onchange = function() {
+  const idx = parseInt(this.value);
+  preferredVoice = isNaN(idx) ? null : voices[idx];
+};
+
+function speak(text, langOverride) {
+  return new Promise(resolve => {
+    synth.cancel();
+    const u  = new SpeechSynthesisUtterance(text);
+    u.lang   = langOverride || (currentLang === 'hi-IN' ? 'hi-IN' : 'en-IN');
+    u.rate   = 0.96;
+    u.pitch  = 1.02;
+    if (preferredVoice) u.voice = preferredVoice;
+    u.onend  = resolve;
+    u.onerror = resolve;
+    synth.speak(u);
+  });
+}
+
+/* ── STT ── */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+
+if (SR) {
+  recognition = new SR();
+  recognition.interimResults = true;
+  recognition.continuous     = false;
+  recognition.lang           = currentLang;
+
+  recognition.onresult = e => {
+    let interim = '', final = '';
+    for (let i = 0; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t;
+      else interim += t;
+    }
+    $('micTranscript').textContent = final || interim;
+    if (final) handleSpeech(final.trim());
+  };
+
+  recognition.onend = () => {
+    listening = false;
+    $('micBtn').classList.remove('listening');
+    $('micBtn').setAttribute('aria-label', 'Tap to speak');
+    if ($('micStatus').textContent === 'Sun raha hoon...') {
+      $('micStatus').textContent = 'Tap karo aur bolo — apni language mein';
+    }
+  };
+
+  recognition.onerror = e => {
+    listening = false;
+    $('micBtn').classList.remove('listening');
+    const msgs = {
+      'no-speech':    'Kuch suna nahi — phir try karo',
+      'not-allowed':  'Microphone access do browser settings mein',
+      'network':      'Network error — check your connection',
+    };
+    $('micStatus').textContent = msgs[e.error] || `Error: ${e.error}`;
+  };
+} else {
+  $('micStatus').textContent = 'Voice recognition support nahi hai — Chrome ya Edge use karo';
+  $('micBtn').disabled = true;
+}
+
+/* Mic button */
+$('micBtn').onclick = () => {
+  if (!recognition) return;
+  synth.cancel(); // stop TTS when user speaks
+  if (listening) {
+    recognition.stop();
+    return;
+  }
+  listening = true;
+  recognition.lang = currentLang;
+  $('micBtn').classList.add('listening');
+  $('micBtn').setAttribute('aria-label', 'Listening... tap to stop');
+  $('micStatus').textContent = 'Sun raha hoon...';
+  $('micTranscript').textContent = '';
+  try { recognition.start(); } catch(e) { /* already started */ }
+};
+
+/* Language pills */
+$('langHi').onclick = () => setLang('hi-IN');
+$('langEn').onclick = () => setLang('en-IN');
+function setLang(lang) {
+  currentLang = lang;
+  recognition && (recognition.lang = lang);
+  $('langHi').classList.toggle('active', lang === 'hi-IN');
+  $('langEn').classList.toggle('active', lang === 'en-IN');
+  $('langHi').setAttribute('aria-pressed', lang === 'hi-IN');
+  $('langEn').setAttribute('aria-pressed', lang === 'en-IN');
+}
+
+/* Mode buttons */
+$('modeQuiz').onclick    = () => setMode('quiz');
+$('modeConcept').onclick = () => setMode('concept');
+$('modeActivity').onclick = () => setMode('activity');
+
+function setMode(m) {
+  currentMode = m;
+  ['modeQuiz','modeConcept','modeActivity'].forEach(id => {
+    $('mode' + id.replace('mode', '')).classList.remove('active');
+    $('mode' + id.replace('mode', '')).setAttribute('aria-pressed', 'false');
+  });
+  const map = { quiz:'Quiz', concept:'Concept', activity:'Activity' };
+  $('mode' + map[m]).classList.add('active');
+  $('mode' + map[m]).setAttribute('aria-pressed', 'true');
+  // update mic hint
+  const hints = {
+    quiz:     'Quiz shuru karo — topic boliye',
+    concept:  'Concept boliye — "Gravity explain karo"',
+    activity: 'Activity guide — topic boliye',
+  };
+  $('micStatus').textContent = hints[m];
+}
+
+/* ── Groq API (free tier — llama-3.3-70b) ── */
+async function callClaude(systemPrompt, userPrompt) {
+  const key = $('apiKey').value.trim();
+  if (!key) return null;
+
+  setStatus('<span class="spinner"></span>Groq se content aa raha hai...');
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model:      'llama-3.3-70b-versatile',
+        max_tokens: 1024,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userPrompt   },
+        ],
+      }),
+    });
+
+    const data = await res.json();
+    if (data.error) {
+      setStatus(`Groq error: ${data.error.message} — sample content use ho raha hai`);
+      return null;
+    }
+    const txt = data.choices?.[0]?.message?.content || '';
+    if (!txt) { setStatus('Groq se khaali response — sample use ho raha hai'); return null; }
+    setStatus('Content ready ✓');
+    return txt.replace(/```json|```/g, '').trim();
+  } catch(e) {
+    setStatus('Network error — sample content use ho raha hai');
+    return null;
+  }
+}
+
+function setStatus(html) {
+  $('micStatus').innerHTML = html;
+}
+
+function extractTopic(text) {
+  // try connector words: "par", "on", "about", "पर", "explain", "samjhao"
+  const m = text.match(/(?:par|on|about|पर|explain|samjhao|chalao|ke baare mein)\s+(.+?)(?:\s*$)/i);
+  if (m) return m[1].trim();
+  // fallback: strip command words
+  const cleaned = text
+    .replace(/quiz|shuru|karo|activity|guide|chalao|start|explain|samjhao|bolo|concept/gi, '')
+    .trim();
+  return cleaned.length > 2 ? cleaned : null;
+}
+
+/* ── Main speech handler ── */
+async function handleSpeech(text) {
+  setStatus('Samajh raha hoon...');
+  const lower = text.toLowerCase();
+
+  // Active states intercept voice first
+  if (quizActive && !isStartCommand(lower)) {
+    const handled = handleQuizAnswer(text);
+    if (handled) return;
+    speak('Samajh nahi aaya — A, B, C ya D boliye.');
+    return;
+  }
+  if (activityActive && !isStartCommand(lower)) {
+    if (/(next|aage|done|ho gaya|ready|agli|age)/.test(lower)) {
+      nextActivityStep(); return;
+    }
+    speak('"Next" boliye jab step poora ho jaaye.');
+    return;
+  }
+
+  // Determine intent
+  const isQuizIntent     = /quiz/.test(lower) || currentMode === 'quiz';
+  const isConceptIntent  = /explain|samjhao|concept|matlab|kya hai|what is/.test(lower) || currentMode === 'concept';
+  const isActivityIntent = /activity|guide|chalao/.test(lower) || currentMode === 'activity';
+
+  const topic = extractTopic(text) || text.replace(/^(quiz|activity|guide|explain|samjhao)\s*/i, '').trim() || 'general knowledge';
+
+  if (isActivityIntent && !isQuizIntent && !isConceptIntent) {
+    await startActivity(topic);
+  } else if (isConceptIntent && !isQuizIntent) {
+    await startConcept(topic);
+  } else {
+    await startQuiz(topic);
+  }
+}
+
+function isStartCommand(lower) {
+  return /quiz shuru|start quiz|activity guide|start activity|explain|samjhao|naya|new quiz/.test(lower);
+}
+
+/* ───────────────── QUIZ ───────────────── */
+let quizActive = false, quizQs = [], quizIdx = 0, quizScore = 0;
+
+async function startQuiz(topic) {
+  quizActive = false;
+  showOnly('quizCard');
+  $('quizEyebrow').textContent = `Quiz — ${topic}`;
+  $('quizQuestion').textContent = `"${topic}" par quiz taiyaar ho raha hai...`;
+  $('quizOptions').innerHTML = '';
+
+  const systemP = `You are Kaksha Saathi, a bilingual (Hinglish — natural mix of Hindi and English) AI classroom assistant for Indian school students. Write naturally spoken Hinglish as a teacher would speak in a Haryana classroom — mix Hindi grammar with English subject words, do not transliterate unnecessarily.`;
+  const userP   = `Generate exactly 4 multiple-choice quiz questions in Hinglish for school students on "${topic}". Return ONLY a JSON array, no markdown, no preamble. Each item: {"question": "...", "options": ["A text","B text","C text","D text"], "correctIndex": 0, "explanation": "Brief Hinglish explanation of why this answer is correct"}`;
+
+  const raw = await callClaude(systemP, userP);
+  if (raw) {
+    try { quizQs = JSON.parse(raw); } catch(e) { quizQs = sampleQuiz(topic); }
+  } else {
+    quizQs = sampleQuiz(topic);
+  }
+
+  quizActive = true; quizIdx = 0; quizScore = 0;
+  await speak(`Theek hai, ${topic} par quiz shuru karte hain!`);
+  showQuizQuestion();
+}
+
+function sampleQuiz(topic) {
+  return [
+    { question: `${topic} ke baare mein — yeh concept mainly kis subject mein aata hai?`, options: ['Science', 'History', 'Mathematics', 'Geography'], correctIndex: 0, explanation: `${topic} typically science ke under aata hai.` },
+    { question: `${topic} ka ek important characteristic kya hai?`, options: ['Yeh hamesha change hota rehta hai', 'Yeh ek well-defined concept hai', 'Yeh sirf theory hai, practical nahi', 'Koi importance nahi iska'], correctIndex: 1, explanation: `${topic} ek well-defined aur important concept hai.` },
+    { question: `Agar hum ${topic} ko practically apply karein toh?`, options: ['Kuch bhi nahi hoga', 'Daily life mein useful hai', 'Sirf scientists ke liye hai', 'Future mein hi kaam aayega'], correctIndex: 1, explanation: `${topic} ka practical application roz ki zindagi mein hota hai.` },
+    { question: `${topic} padhne ke liye sabse important skill kya chahiye?`, options: ['Ratt lena', 'Concept samajhna', 'Sirf exam ke liye padhna', 'Teacher se copy karna'], correctIndex: 1, explanation: 'Concept samajhna sabse important hai, ratta marna nahi.' },
+  ];
+}
+
+function showQuizQuestion() {
+  const q = quizQs[quizIdx];
+  if (!q) return;
+  $('quizQuestion').textContent = q.question;
+  $('quizOptions').innerHTML = q.options.map((o, i) =>
+    `<div class="opt" data-i="${i}" tabindex="0" role="button" aria-label="Option ${String.fromCharCode(65+i)}: ${o}">${String.fromCharCode(65+i)}. ${o}</div>`
+  ).join('');
+  $('quizProgress').textContent = `Q ${quizIdx+1} / ${quizQs.length}`;
+  $('quizScore').textContent    = `Score: ${quizScore}`;
+
+  // Click to answer too
+  document.querySelectorAll('#quizOptions .opt').forEach(el => {
+    el.onclick = () => handleQuizAnswer(el.dataset.i);
+    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') handleQuizAnswer(el.dataset.i); };
+  });
+
+  speak(`Sawaal number ${quizIdx+1}: ${q.question}. Options hain — A: ${q.options[0]}, B: ${q.options[1]}, C: ${q.options[2]}, D: ${q.options[3]}`);
+}
+
+function handleQuizAnswer(input) {
+  const q = quizQs[quizIdx];
+  let idx = -1;
+
+  // numeric direct (from click)
+  if (!isNaN(parseInt(input))) {
+    idx = parseInt(input);
+  } else {
+    const lower = String(input).toLowerCase();
+    const letterM = lower.match(/\b([a-d])\b/);
+    const wordMap  = { first:0, second:1, third:2, fourth:3, ek:0, do:1, teen:2, char:3, pehla:0, doosra:1, teesra:2, chautha:3 };
+    if (letterM) idx = letterM[1].charCodeAt(0) - 97;
+    else {
+      for (const w in wordMap) {
+        if (new RegExp(`\\b${w}\\b`).test(lower)) { idx = wordMap[w]; break; }
+      }
+    }
+    // content overlap fallback
+    if (idx < 0) {
+      let best = 0, bestI = -1;
+      q.options.forEach((opt, i) => {
+        const words = opt.toLowerCase().split(/\s+/).filter(w => w.length > 1);
+        const hits  = words.filter(w => lower.includes(w)).length;
+        if (hits > best) { best = hits; bestI = i; }
+      });
+      if (best > 0) idx = bestI;
+    }
+    if (idx < 0 || idx > 3) return false;
+  }
+
+  const opts = document.querySelectorAll('#quizOptions .opt');
+  opts.forEach((el, i) => {
+    if (i === q.correctIndex) el.classList.add('correct');
+    else if (i === idx)       el.classList.add('wrong');
+    el.style.pointerEvents = 'none';
+  });
+
+  const correct = idx === q.correctIndex;
+  if (correct) quizScore++;
+  $('quizScore').textContent = `Score: ${quizScore}`;
+
+  const feedback = correct
+    ? `Bilkul sahi! ${q.explanation || 'Bahut accha!'}`
+    : `Galat. Sahi jawaab tha ${String.fromCharCode(65+q.correctIndex)}. ${q.explanation || ''}`;
+
+  speak(feedback).then(() => {
+    quizIdx++;
+    if (quizIdx < quizQs.length) {
+      setTimeout(showQuizQuestion, 700);
+    } else {
+      quizActive = false;
+      const total = quizQs.length;
+      const msg   = quizScore === total
+        ? `Shandaar! Aapne ${quizScore} mein se ${quizScore} sahi kiye. Perfect score!`
+        : quizScore >= total / 2
+        ? `Quiz khatam. Aapka score ${quizScore} out of ${total}. Acha kaam!`
+        : `Quiz khatam. Aapka score ${quizScore} out of ${total}. Thoda aur practice karo!`;
+      $('quizQuestion').textContent = msg;
+      speak(msg);
+    }
+  });
+  return true;
+}
+
+/* ─────────── CONCEPT EXPLANATION ─────────── */
+async function startConcept(topic) {
+  showOnly('conceptCard');
+  $('conceptBody').innerHTML = '<span class="spinner"></span> Samjha raha hoon...';
+  $('readAloudBtn').style.display = 'none';
+
+  const systemP = `You are Kaksha Saathi, a warm, engaging Hinglish-speaking school teacher for students in Haryana, India. Use natural Hinglish (Hindi grammar + English technical words). Keep explanations conversational, with a real-world Indian example. Structure: 1-2 sentences core idea, one example box with "Example:" label, then 1-2 follow-up sentences. No markdown headers, no bullet points — flowing prose only. Max 120 words.`;
+  const userP   = `Explain "${topic}" in Hinglish for Class 6-10 students. Follow the structure exactly.`;
+
+  const raw = await callClaude(systemP, userP);
+  currentConceptText = raw || sampleConcept(topic);
+
+  $('conceptBody').innerHTML = formatConcept(currentConceptText);
+  $('readAloudBtn').style.display = 'inline-block';
+  speak(currentConceptText.replace(/<[^>]+>/g, ''));
+}
+
+function sampleConcept(topic) {
+  return `${topic} ek bahut important concept hai jo humari daily life mein kaam aata hai. Yeh samajhna zaroori hai ki ${topic} kaise kaam karta hai, aur kahan use hota hai.\n\nExample: Jaise ek chota baccha school mein seekhta hai, waise hi ${topic} bhi step by step samajh aata hai.\n\nIsse theek se samjhne ke liye hamesha curiosity rakho aur questions poochho. ${topic} ko practice karte rehne se concepts clear ho jaate hain.`;
+}
+
+function formatConcept(text) {
+  // Detect and highlight example box
+  const parts = text.split(/\n\n/);
+  return parts.map(p => {
+    if (p.toLowerCase().startsWith('example:') || p.toLowerCase().startsWith('udaaharan:') || p.toLowerCase().startsWith('misal:')) {
+      return `<div class="example-box">${p}</div>`;
+    }
+    // Bold important-sounding phrases (wrapped in ** if Claude used markdown)
+    p = p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    return `<p>${p}</p>`;
+  }).join('');
+}
+
+$('readAloudBtn').onclick = () => {
+  if (currentConceptText) speak(currentConceptText.replace(/<[^>]+>/g, ''));
+};
+
+/* ─────────── ACTIVITY GUIDE ─────────── */
+let activityActive = false, actSteps = [], actIdx = 0, actTimer = null;
+
+async function startActivity(topic) {
+  activityActive = false;
+  showOnly('activityCard');
+  $('activitySteps').innerHTML = '<div style="color:var(--chalk-dim);font-size:14px;"><span class="spinner"></span> Guide taiyaar ho rahi hai...</div>';
+
+  const systemP = `You are Kaksha Saathi, a Hinglish-speaking classroom assistant for Indian school teachers. Write step-by-step hands-on classroom activity instructions in natural Hinglish. Each step should be actionable and clear for a teacher to read aloud while students work.`;
+  const userP   = `Create a 4-step hands-on classroom activity guide for "${topic}" suitable for school students. Return ONLY a JSON array, no markdown. Each item: {"text": "Hinglish instruction for this step", "seconds": 60} where seconds is realistic time (30-180).`;
+
+  const raw = await callClaude(systemP, userP);
+  if (raw) {
+    try { actSteps = JSON.parse(raw); } catch(e) { actSteps = sampleActivity(topic); }
+  } else {
+    actSteps = sampleActivity(topic);
+  }
+
+  activityActive = true; actIdx = 0;
+  renderActivity();
+  await speak(`${topic} activity shuru karte hain! "Next" boliye jab ek step poora ho jaaye.`);
+  announceStep();
+}
+
+function sampleActivity(topic) {
+  return [
+    { text: `Sabhi students apna material taiyaar karein — ${topic} ke liye notebook aur pen ready rakho. Group mein baithein agar teacher ne kaha ho.`, seconds: 60 },
+    { text: `Ab concept ko practically dekho — ${topic} se related ek simple experiment ya observation karo. Teacher se poochho agar kuch clear na ho.`, seconds: 120 },
+    { text: `Apne observations note karo. Kya dekha? Kya socha? Kisi sawal ka answer mila? Sab kuch likhte raho.`, seconds: 90 },
+    { text: `Class ke saath apna result share karo. Apna ek key observation boliye — confidently!`, seconds: 60 },
+  ];
+}
+
+function renderActivity() {
+  $('activitySteps').innerHTML = actSteps.map((s, i) => {
+    const isActive = i === actIdx;
+    const isDone   = i < actIdx;
+    const isDead   = !activityActive && actIdx >= actSteps.length;
+    const timerHTML = isActive && !isDead ? `
+      <div class="timer-wrap">
+        <div class="timer-ring">
+          <svg width="48" height="48">
+            <circle cx="24" cy="24" r="19" stroke="rgba(159,179,168,.2)" stroke-width="4" fill="none"/>
+            <circle id="ringProgress" cx="24" cy="24" r="19" stroke="var(--marigold)" stroke-width="4" fill="none"
+              stroke-dasharray="${(2 * Math.PI * 19).toFixed(2)}"
+              stroke-dashoffset="0" stroke-linecap="round"/>
+          </svg>
+          <div class="num" id="timerNum">${s.seconds}s</div>
+        </div>
+        <div class="timer-hint">Timer chal raha hai — "Next" boliye jab step ho jaaye</div>
+      </div>` : '';
+    return `<div class="step-row ${isActive?'active':''} ${isDone?'done':''}" id="step-${i}">
+      <div class="step-num">${i+1}</div>
+      <div style="flex:1">
+        <div class="step-text">${s.text}</div>
+        ${timerHTML}
+      </div>
+    </div>`;
+  }).join('');
+
+  if (activityActive && actIdx < actSteps.length) startStepTimer();
+}
+
+function startStepTimer() {
+  if (actTimer) clearInterval(actTimer);
+  const s = actSteps[actIdx];
+  let remaining = s.seconds;
+  const C = 2 * Math.PI * 19;
+  actTimer = setInterval(() => {
+    remaining--;
+    const numEl  = $('timerNum');
+    const ringEl = $('ringProgress');
+    if (numEl)  numEl.textContent = Math.max(remaining, 0) + 's';
+    if (ringEl) ringEl.style.strokeDashoffset = (C * (1 - Math.max(remaining,0)/s.seconds)).toFixed(2);
+    if (remaining <= 0) {
+      clearInterval(actTimer);
+      speak('Time ho gaya! Agla step ke liye "Next" boliye.');
+    }
+  }, 1000);
+}
+
+function announceStep() {
+  const s = actSteps[actIdx];
+  speak(`Step ${actIdx + 1}: ${s.text}`);
+}
+
+function nextActivityStep() {
+  if (actTimer) clearInterval(actTimer);
+  actIdx++;
+  if (actIdx >= actSteps.length) {
+    activityActive = false;
+    renderActivity();
+    speak('Activity poori ho gayi! Bahut accha kaam kiya saare students ne.');
+    return;
+  }
+  renderActivity();
+  announceStep();
+}
+
+/* ── UI helpers ── */
+function showOnly(cardId) {
+  ['quizCard','conceptCard','activityCard'].forEach(id => {
+    $(id).classList.toggle('show', id === cardId);
+  });
+}
+</script>
+</body>
+</html>
